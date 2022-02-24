@@ -84,3 +84,48 @@ class SystemsWebFilterTest {
 Webfilter는 모든 request에 filter를 걸리게 한다. 만약 특정한 경우에 하고 싶으면 url pattern matching을 사용해서 분기해야 한다.
 
 # HandlerFilterFunction example
+```java
+@FunctionInterface
+pubilc interface HandlerFilterFunction<T extends ServerResponse, R extends ServerResponse> {
+    Mono<R> filter(ServerRequest request, HandlerFunction<T> next);
+}
+```
+@FunctionInterface로 인터페이스를 선언하고 구현한다.
+```java
+public class SystemsHandlerFilterFunction implements HandlerFilterFunction<ServerResponse, ServerResponse> {
+    @Override
+    public Mono<ServerResponse> filter(ServerRequest serverRequest, HandlerFunction<ServerResponse> handlerFunction) {
+       if (serverRequest.pathVariable("name".equalsIgnoreCase("test")) {
+           return ServerResponse.status(FORBIDDEN).build();
+       }
+       return handlerFunction.handle(serverRequest);
+    }
+}
+```
+pathVariable의 name 값이 "test"이며 403을 리턴한다.  
+```java
+@Bean
+public RouterFunction<ServerResponse> filterFunction(UserHandler userHandler) {
+   return RouterFunctions.route(GET("/user/{name}")
+           .and(accept(MediaType.APPLICATION_JSON)), userHandler::name)
+           .filter(new SystemsHandlerFilterFunction());
+}
+```
+위의 경우 라우터의 filter에 filter를 선언한다.
+## Test code
+```java
+@WebFulxTest(value = {IndexHandler.class, IndexRouter.class,  SystemsWebFilter.class, UserHandler.class})
+class ExampleWebFilterTest {
+   @Autowired
+   WebTestClient webTestClient;
+   
+   @DisplayName("filterFunction Test")
+   @Test
+   void filterFunction_forbiden_test() {
+      webTestClient.get()
+         .uri("/user/test")
+         .exchange()
+         .expectStatus().isForbidden();
+   }
+}
+```
